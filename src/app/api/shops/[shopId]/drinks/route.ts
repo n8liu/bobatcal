@@ -2,6 +2,8 @@
 import { PrismaClient } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { getServerSession } from 'next-auth/next'; // Import getServerSession
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'; // Import authOptions
 
 const prisma = new PrismaClient();
 
@@ -18,6 +20,13 @@ export async function POST(
   { params }: { params: { shopId: string } }
 ) {
   const shopId = params.shopId;
+
+  // === Authorization Check ===
+  const session = await getServerSession(authOptions);
+  if (!session || session.user?.role !== 'DRINK_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  // ==========================
 
   // 1. Validate Shop ID exists
   try {
@@ -71,27 +80,59 @@ export async function GET(
   const shopId = params.shopId;
 
   try {
-    const drinks = await prisma.drink.findMany({
+    // Fetch drinks and include rating values for calculation
+    const drinksWithRatings = await prisma.drink.findMany({
       where: {
         shopId: shopId,
       },
+      include: {
+        ratings: {
+          select: {
+            ratingValue: true, // Select only the rating value needed for calculation
+          },
+        },
+      },
       orderBy: {
-        name: 'asc', // Optional: order drinks alphabetically
+        name: 'asc',
       },
     });
 
-    // Check if the shop itself exists (optional, but good practice)
-    // If drinks are found, the shop must exist. If no drinks, maybe check shop?
-    if (drinks.length === 0) {
-        const shopExists = await prisma.shop.findUnique({ where: { id: shopId } });
-        if (!shopExists) {
-             return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
-        }
+    // Check if the shop itself exists (Only if no drinks found)
+    if (drinksWithRatings.length === 0) {
+      const shopExists = await prisma.shop.findUnique({ where: { id: shopId } });
+      if (!shopExists) {
+        return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+      }
     }
 
-    return NextResponse.json(drinks);
-  } catch (error) {
-    console.error(`Failed to fetch drinks for shop ${shopId}:`, error);
+    // Calculate average rating and count for each drink
+    // Define an intermediate type for the drink with included ratings
+    type DrinkWithRatings = Prisma.DrinkGetPayload<{
+      include: { ratings: { select: { ratingValue: true } } }
+    }>;
+
+    const drinksWithAggregates = drinksWithRatings.map((drink: DrinkWithRatings) => {
+      const ratingCount = drink.ratings.length;
+      let averageRating: number | null = null;
+      if (ratingCount > 0) {
+        const totalRating = drink.ratings.reduce((sum: number, rating: { ratingValue: number }) => sum + rating.ratingValue, 0);
+        averageRating = parseFloat((totalRating / ratingCount).toFixed(1)); // Calculate and round
+      }
+
+      // Return a new object excluding the detailed ratings array
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { ratings, ...drinkData } = drink; // Destructure to remove ratings
+      return {
+        ...drinkData,
+        averageRating,
+        ratingCount,
+      };
+    });
+
+    return NextResponse.json(drinksWithAggregates);
+
+  } catch (error) { 
+    console.error("Failed to fetch drinks for shop:", shopId, error);
     // Avoid exposing detailed errors in production
     return NextResponse.json({ error: 'Failed to fetch drinks' }, { status: 500 });
   }

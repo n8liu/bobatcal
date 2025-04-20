@@ -28,6 +28,7 @@ model User {
   accounts Account[]
   sessions Session[]
   ratings  Rating[]  // Relation to user's ratings
+  role          String    @default("USER")
 }
 
 // Model required by next-auth Prisma adapter for linking OAuth accounts
