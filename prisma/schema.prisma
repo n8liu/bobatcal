@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authenticated users via Google OAuth
+model User {
+  id            String    @id @default(cuid())
+  // googleId field is not strictly needed if using next-auth accounts, but keep for now if needed elsewhere
+  // googleId   String?   @unique
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  ratings  Rating[]  // Relation to user's ratings
+}
+
+// Model required by next-auth Prisma adapter for linking OAuth accounts
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// Model required by next-auth Prisma adapter for database sessions
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Model required by next-auth Prisma adapter for email verification tokens (optional)
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Boba shop location model
+model Shop {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  city      String? 
+  zipCode   String? 
+  phone     String? 
+  hours     String?  
+  googlePlaceId String? @unique 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  drinks Drink[] // Relation to drinks offered at this shop
+}
+
+// Specific boba drink model
+model Drink {
+  id        String   @id @default(cuid())
+  name      String   // e.g., "Classic Milk Tea"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shopId String // Foreign key to Shop
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  ratings Rating[] // Relation to ratings for this specific drink
+
+  // Ensure a drink name is unique within a specific shop
+  @@unique([name, shopId])
+}
+
+// Rating model for a specific drink at a specific shop by a specific user
+model Rating {
+  id        String   @id @default(cuid())
+  stars     Float    // 1.0 to 5.0 rating
+  review    String?  // Optional text review
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String // Foreign key to User
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  drinkId String // Foreign key to Drink
+  drink   Drink  @relation(fields: [drinkId], references: [id], onDelete: Cascade)
+
+  // Ensure a user can only rate a specific drink once
+  @@unique([userId, drinkId])
+}
