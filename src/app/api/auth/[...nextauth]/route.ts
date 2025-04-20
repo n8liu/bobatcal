@@ -1,4 +1,4 @@
-import NextAuth from 'next-auth';
+import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import prisma from '@/lib/prisma'; // Import our Prisma client instance
@@ -13,7 +13,8 @@ if (!process.env.NEXTAUTH_SECRET) {
   throw new Error('Missing NEXTAUTH_SECRET environment variable');
 }
 
-const handler = NextAuth({
+// Define and export the configuration options
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
@@ -29,13 +30,15 @@ const handler = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
   // Optional: Add callbacks for customizing behavior (e.g., session, jwt)
-  // callbacks: {
-  //   async session({ session, user }) {
-  //     // Send properties to the client, like an access_token and user id from a provider.
-  //     session.user.id = user.id;
-  //     return session;
-  //   }
-  // },
+  callbacks: {
+    async session({ session, user }) {
+      // Send properties to the client, like an access_token and user id from a provider.
+      if (session.user) {
+        session.user.id = user.id; // Add the user ID to the session object
+      }
+      return session;
+    }
+  },
   // Optional: Configure custom pages
   // pages: {
   //   signIn: '/auth/signin',
@@ -44,6 +47,9 @@ const handler = NextAuth({
   //   verifyRequest: '/auth/verify-request', // (used for email/passwordless sign in)
   //   newUser: '/auth/new-user' // New users will be directed here on first sign in (leave the property out to disable)
   // }
-});
+};
+
+// Use the exported options in the NextAuth handler
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

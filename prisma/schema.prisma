@@ -100,13 +100,13 @@ model Drink {
   @@unique([name, shopId])
 }
 
-// Rating model for a specific drink at a specific shop by a specific user
+// Rating model for specific drinks by specific users
 model Rating {
-  id        String   @id @default(cuid())
-  stars     Float    // 1.0 to 5.0 rating
-  review    String?  // Optional text review
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  ratingValue Float    // Rating from 1.0 to 5.0
+  reviewText  String?  // Optional text review
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   userId String // Foreign key to User
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -116,4 +116,7 @@ model Rating {
 
   // Ensure a user can only rate a specific drink once
   @@unique([userId, drinkId])
+  // Index for faster lookups of ratings by drink or user
+  @@index([drinkId])
+  @@index([userId])
 }

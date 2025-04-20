@@ -1,13 +1,29 @@
 import prisma from '@/lib/prisma';
-import { Shop } from '@prisma/client'; // Correct import for the model type
 import Link from 'next/link'; // Import Link
 
+// Define local interface matching needed fields
+interface SimpleShop {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  zipCode: string | null;
+}
+
 // This page is a React Server Component, so we can fetch data directly
-async function getShops(): Promise<Shop[]> { // Type the return promise
+async function getShops(): Promise<SimpleShop[]> { // Update return type
   const shops = await prisma.shop.findMany({
     orderBy: {
       name: 'asc', // Order shops alphabetically by name
     },
+    // Select only the fields needed for SimpleShop
+    select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        zipCode: true,
+    }
   });
   return shops;
 }
@@ -22,7 +38,7 @@ export default async function ShopsPage() {
         <p className="text-gray-600">No shops have been added yet.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {shops.map((shop: Shop) => ( // Type the shop parameter
+          {shops.map((shop: SimpleShop) => ( // Update type annotation
             <div key={shop.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
               <h2 className="text-xl font-semibold mb-2 text-teal-700 hover:text-teal-900 transition-colors">
                 <Link href={`/shops/${shop.id}`}>
