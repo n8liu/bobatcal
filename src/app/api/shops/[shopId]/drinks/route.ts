@@ -78,6 +78,8 @@ export async function GET(
   { params }: { params: { shopId: string } }
 ) {
   const shopId = params.shopId;
+  const { searchParams } = new URL(request.url);
+  const sortBy = searchParams.get('sortBy'); // Get sortBy query param
 
   try {
     // Fetch drinks and include rating values for calculation
@@ -106,12 +108,7 @@ export async function GET(
     }
 
     // Calculate average rating and count for each drink
-    // Define an intermediate type for the drink with included ratings
-    type DrinkWithRatings = Prisma.DrinkGetPayload<{
-      include: { ratings: { select: { ratingValue: true } } }
-    }>;
-
-    const drinksWithAggregates = drinksWithRatings.map((drink: DrinkWithRatings) => {
+    const drinksWithAggregates = drinksWithRatings.map((drink: typeof drinksWithRatings[number]) => {
       const ratingCount = drink.ratings.length;
       let averageRating: number | null = null;
       if (ratingCount > 0) {
@@ -128,6 +125,24 @@ export async function GET(
         ratingCount,
       };
     });
+
+    // Sort based on query parameter
+    if (sortBy === 'popular') {
+      drinksWithAggregates.sort((a: typeof drinksWithAggregates[number], b: typeof drinksWithAggregates[number]) => 
+        (b.ratingCount ?? 0) - (a.ratingCount ?? 0)
+      );
+    } else if (sortBy === 'rating') {
+      drinksWithAggregates.sort((a: typeof drinksWithAggregates[number], b: typeof drinksWithAggregates[number]) => {
+        const ratingA = a.averageRating ?? -1; // Treat null rating as very low
+        const ratingB = b.averageRating ?? -1;
+        return ratingB - ratingA;
+      });
+    } else {
+      // Default sort by name (already fetched sorted like this, but explicit)
+      drinksWithAggregates.sort((a: typeof drinksWithAggregates[number], b: typeof drinksWithAggregates[number]) => 
+        a.name.localeCompare(b.name)
+      );
+    }
 
     return NextResponse.json(drinksWithAggregates);
 

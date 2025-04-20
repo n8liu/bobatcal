@@ -1,5 +1,8 @@
 import prisma from '@/lib/prisma';
 import Link from 'next/link'; // Import Link
+// Import session utilities
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 // Define local interface matching needed fields
 interface SimpleShop {
@@ -30,6 +33,7 @@ async function getShops(): Promise<SimpleShop[]> { // Update return type
 
 export default async function ShopsPage() {
   const shops = await getShops();
+  const session = await getServerSession(authOptions); // Get session on server
 
   return (
     <div>
@@ -54,14 +58,16 @@ export default async function ShopsPage() {
           ))}
         </div>
       )}
-      <div className="mt-8 flex justify-center">
-        <Link
-          href="/shops/add"
-          className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 shadow-md"
-        >
-          Add New Shop
-        </Link>
-      </div>
+      {session?.user?.role === 'DRINK_ADMIN' && (
+        <div className="mt-8 flex justify-center">
+          <Link
+            href="/shops/add"
+            className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 shadow-md"
+          >
+            Add New Shop
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

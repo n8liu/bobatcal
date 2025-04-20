@@ -16,6 +16,8 @@ interface SimpleDrink {
   id: string;
   name: string;
   shopId: string;
+  averageRating?: number | null; // Add optional average rating
+  ratingCount?: number;       // Add optional rating count
 }
 
 interface RatingInput {
@@ -51,6 +53,8 @@ type AllRatingsState = Record<string, DrinkRatingData>;
 
 // Type for the state storing rating inputs for all drinks
 type AllRatingInputsState = Record<string, RatingInput>;
+
+type SortOrder = 'name' | 'popular' | 'rating'; // Define sort order type
 
 // Modal Custom Styles (optional, adjust as needed)
 const customModalStyles: Styles = { // Explicitly type with Styles
@@ -110,6 +114,9 @@ export default function ShopDetailPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDrinkForModal, setSelectedDrinkForModal] = useState<SimpleDrink | null>(null);
 
+  // Sorting State
+  const [sortOrder, setSortOrder] = useState<SortOrder>('name');
+
   // --- Fetch Shop Details ---
   useEffect(() => {
     if (!shopId) return;
@@ -136,11 +143,11 @@ export default function ShopDetailPage() {
   }, [shopId]);
 
   // --- Fetch Drinks for the Shop ---
-  useEffect(() => {
+  const fetchDrinks = useCallback(async (currentSortOrder: SortOrder) => {
     if (!shopId) return;
     setLoadingDrinks(true);
     setDrinksError(null);
-    fetch(`/api/shops/${shopId}/drinks`)
+    fetch(`/api/shops/${shopId}/drinks?sortBy=${currentSortOrder}`)
       .then(async (res) => {
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
@@ -168,6 +175,12 @@ export default function ShopDetailPage() {
         setLoadingDrinks(false);
       });
   }, [shopId]);
+
+  useEffect(() => {
+    if (!loadingShop) {
+      fetchDrinks(sortOrder);
+    }
+  }, [loadingShop, sortOrder, fetchDrinks]);
 
   // --- Function to Fetch Ratings for a Specific Drink ---
   const fetchRatingsForDrink = useCallback(async (drinkId: string) => {
@@ -327,26 +340,51 @@ export default function ShopDetailPage() {
 
       {/* Drinks List */}
       {!loadingDrinks && drinks.length > 0 && (
-        <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"> {/* Use grid for columns */} 
-          {drinks.map((drink) => (
-            <li
-              key={drink.id}
-              className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer" // Compact padding, add cursor
-              onClick={() => openModal(drink)} // Open modal on click
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-semibold text-gray-800">Drinks</h2>
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => setSortOrder('name')} 
+              className={`px-3 py-1 rounded text-sm ${sortOrder === 'name' ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
             >
-              <div className="flex justify-between items-center">
-                 <h3 className="text-lg font-medium text-gray-800">{drink.name}</h3>
-                 {/* Display average rating concisely */}
-                 {allRatings[drink.id] && !allRatings[drink.id].isLoading && allRatings[drink.id].averageRating !== null && (
-                     <span className="text-sm font-semibold text-yellow-600">
-                         ★ {allRatings[drink.id].averageRating?.toFixed(1)} ({allRatings[drink.id].ratingCount})
-                     </span>
-                 )}
-              </div>
-            </li>
-          ))}
-        </ul>
+              Name
+            </button>
+            <button 
+              onClick={() => setSortOrder('popular')} 
+              className={`px-3 py-1 rounded text-sm ${sortOrder === 'popular' ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+            >
+              Popular
+            </button>
+            <button 
+              onClick={() => setSortOrder('rating')}
+              className={`px-3 py-1 rounded text-sm ${sortOrder === 'rating' ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+            >
+              Highest Rated
+            </button>
+          </div>
+        </div>
       )}
+      <ul className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8"> {/* Updated grid columns */} 
+        {drinks.map((drink) => (
+          <li
+            key={drink.id}
+            className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full" // Added h-full
+            onClick={() => openModal(drink)} // Open modal on click
+          >
+            <div className="flex justify-between items-center">
+               <h3 className="text-lg font-medium text-gray-800">{drink.name}</h3>
+               {/* Display average rating from fetched drink data */}
+               {drink.ratingCount && drink.ratingCount > 0 && drink.averageRating != null ? (
+                   <span className="text-sm font-semibold text-yellow-600 ml-2 flex-shrink-0">
+                       ★ {drink.averageRating.toFixed(1)} ({drink.ratingCount})
+                   </span>
+               ) : (
+                   <span className="text-sm text-gray-400 ml-2 flex-shrink-0">No ratings</span>
+               ) }
+            </div>
+          </li>
+        ))}
+      </ul>
 
       {/* Add Drink Form (Conditionally Rendered) */} 
       {sessionStatus === 'authenticated' && session?.user?.role === 'DRINK_ADMIN' && (

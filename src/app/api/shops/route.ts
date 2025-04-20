@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 // Define a schema for validating the request body
 const shopSchema = z.object({
@@ -11,7 +13,14 @@ const shopSchema = z.object({
   // Add other fields like phone, hours if needed in the future
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // === Authorization Check ===
+  const session = await getServerSession(authOptions);
+  if (!session || session.user?.role !== 'DRINK_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden: Only Drink Admins can add shops.' }, { status: 403 });
+  }
+  // ==========================
+
   try {
     const body = await request.json();
 
